@@ -7,21 +7,20 @@ DECLARE
 	@nro int;
 
 OPEN list_cliente
-	 FETCH NEXT FROM list_cliente INTO @xid_cliente, @xr_soc
+	FETCH NEXT FROM list_cliente INTO @xid_cliente, @xr_soc
 	 
-	 PRINT'				LISTADO DE CLIENTES';
-	 PRINT'===========================================================================================================================================';
-	 PRINT'NRO.	CODIGO DE CLIENTE		RAZON SOCIAL								REPRESENTANTE LEGAL					CANTIDAD DE CONTRATOS VIGENTES';
-	 PRINT'===========================================================================================================================================';
-	 SET @nro=0;
+	PRINT'				LISTADO DE CLIENTES';
+	PRINT'===========================================================================================================================================';
+	PRINT'NRO.	CODIGO DE CLIENTE		RAZON SOCIAL								REPRESENTANTE LEGAL					CANTIDAD DE CONTRATOS VIGENTES';
+	PRINT'===========================================================================================================================================';
+	SET @nro=0;
 	 
-	 WHILE @@FETCH_STATUS=0
-	 BEGIN
-		
-		SET @nro=@nro+1;
-		PRINT CONVERT(VARCHAR(500),@nro)+'		'+@xid_cliente+'			'+@xr_soc+'						'+dbo.rep_legalxcliente(@xid_cliente)+'									'+CONVERT(VARCHAR(500),dbo.q_contratoxcliente(@xid_cliente));
-		FETCH NEXT FROM list_cliente INTO @xid_cliente, @xr_soc
-	END
+	WHILE @@FETCH_STATUS=0
+		BEGIN
+			SET @nro=@nro+1;
+			PRINT CONVERT(VARCHAR(500),@nro)+'		'+@xid_cliente+'			'+@xr_soc+'						'+dbo.rep_legalxcliente(@xid_cliente)+'									'+CONVERT(VARCHAR(500),dbo.q_contratoxcliente(@xid_cliente));
+			FETCH NEXT FROM list_cliente INTO @xid_cliente, @xr_soc
+		END
 
 CLOSE list_cliente;
 DEALLOCATE list_cliente;
@@ -113,4 +112,83 @@ OPEN list_cliente
 
 CLOSE list_cliente;
 DEALLOCATE list_cliente;
----------------------------------
+-------------------------------------------------------------------------------------------------------
+--TRABAJADORES POR CLIENTE (CURSORES ANIDADAS)
+--CURSOR1
+DECLARE list_cliente CURSOR FOR SELECT DISTINCT sc.id_scliente, sc.n_com
+								FROM SUB_CLIENTE sc 
+									INNER JOIN CONTRATO co ON co.id_scliente=sc.id_scliente
+								WHERE co.estado='vigente'
+								ORDER BY sc.n_com;
+DECLARE
+	@xid_scliente varchar(500),
+	@xn_com varchar(500);
+
+OPEN list_cliente
+	FETCH NEXT FROM list_cliente INTO @xid_scliente, @xn_com
+	 
+	PRINT'FICHA CLIENTE';
+	PRINT'============================================================================='
+	WHILE @@FETCH_STATUS=0
+	
+	BEGIN
+		PRINT @xid_scliente+'	'+@xn_com;
+		--CURSOR 2
+		DECLARE list_personal CURSOR FOR SELECT p.n_completo, p.cel
+									FROM SUB_CLIENTE sc 
+										INNER JOIN TIENE t ON t.id_scliente=sc.id_scliente
+										INNER JOIN PERSONAL p ON p.id_persona=t.id_persona 
+										INNER JOIN CONTRATO co ON co.id_scliente=sc.id_scliente
+									WHERE co.estado='vigente' and sc.id_scliente=@xid_scliente;
+		DECLARE
+		@xn_completo varchar(500),
+		@xcel varchar(500);
+	
+		OPEN list_personal
+		FETCH NEXT FROM list_personal INTO @xn_completo, @xcel
+		PRINT'-----------------------------------------------------------------------------'
+		PRINT'		PERSONAL DEL CLIENTE:										CELULAR'
+		
+		WHILE @@FETCH_STATUS=0
+		
+			BEGIN
+				PRINT'		'+@xn_completo+'										'+@xcel;
+				FETCH NEXT FROM list_personal INTO @xn_completo, @xcel
+			END
+		--CURSOR 3
+		CLOSE list_personal;
+		DEALLOCATE list_personal;
+	
+		DECLARE list_contratos CURSOR FOR SELECT co.sum_tran,co.arrend,co.asesor,co.ser_int
+									FROM SUB_CLIENTE sc 
+										INNER JOIN CONTRATO co ON co.id_scliente=sc.id_scliente
+									WHERE co.estado='vigente' and sc.id_scliente=@xid_scliente;
+		DECLARE
+		@xsum_tran varchar(500),
+		@xarrend varchar(500),
+		@xasesor varchar(500),
+		@xser_int varchar(500);
+	
+		OPEN list_contratos
+		FETCH NEXT FROM list_contratos INTO @xsum_tran, @xarrend,@xasesor,@xser_int
+		PRINT '		
+		CONTRATOS:'															
+		WHILE @@FETCH_STATUS=0
+		
+			BEGIN
+				PRINT '		Suministro y transporte: '+'	'+@xsum_tran;
+				PRINT '		Arrendamiento de equipos: '+'	'+@xarrend;
+				PRINT '		Asesoramiento de equipos:'+'	'+@xasesor;
+				PRINT '		Sevicio Integral: '+'			'+@xser_int;
+				FETCH NEXT FROM list_contratos INTO @xsum_tran, @xarrend,@xasesor,@xser_int
+			END
+
+		CLOSE list_contratos;
+		DEALLOCATE list_contratos;
+	
+	FETCH NEXT FROM list_cliente INTO @xid_scliente, @xn_com
+	PRINT'-----------------------------------------------------------------------------'
+	END
+
+CLOSE list_cliente;
+DEALLOCATE list_cliente;
